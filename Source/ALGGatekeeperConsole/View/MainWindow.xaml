@@ -1,0 +1,274 @@
+﻿<Window x:Class="ALGGatekeeperConsole.View.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="clr-namespace:ALGGatekeeperConsole.ViewModel"
+        Title="{Binding WindowTitle}" Height="700" Width="1000" MinHeight="650" MinWidth="900"
+        Icon="pack://application:,,,/Resources/ALGGatekeeper.ico" Closed="Window_Closed">
+    <Window.DataContext>
+        <vm:MainWindowViewModel/>
+    </Window.DataContext>
+    <Window.Resources>
+        <BooleanToVisibilityConverter x:Key="BoolToVis"/>
+        <Style x:Key="IconButton" TargetType="Button">
+            <Setter Property="Margin" Value="3"/>
+            <Setter Property="Width" Value="26"/>
+        </Style>
+        <Style x:Key="Hint" TargetType="TextBlock">
+            <Setter Property="Foreground" Value="Gray"/>
+            <Setter Property="VerticalAlignment" Value="Center"/>
+            <Setter Property="Margin" Value="8,0,0,0"/>
+            <Setter Property="TextWrapping" Value="Wrap"/>
+        </Style>
+    </Window.Resources>
+    <DockPanel>
+        <!-- status bar -->
+        <StatusBar DockPanel.Dock="Bottom">
+            <StatusBarItem>
+                <TextBlock Text="{Binding StatusText}">
+                    <TextBlock.Style>
+                        <Style TargetType="TextBlock">
+                            <Setter Property="Foreground" Value="Red"/>
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding IsServiceResponding}" Value="True">
+                                    <Setter Property="Foreground" Value="Green"/>
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </TextBlock.Style>
+                </TextBlock>
+            </StatusBarItem>
+        </StatusBar>
+
+        <!-- simulation warning -->
+        <Border DockPanel.Dock="Top" Background="#FFF4CE" BorderBrush="#E0B000" BorderThickness="0,0,0,1"
+                Visibility="{Binding IsMonitorOnly, Converter={StaticResource BoolToVis}}">
+            <TextBlock Margin="8,5" FontWeight="SemiBold" TextWrapping="Wrap">
+                SIMULATION MODE is on: nobody is banned, bans are only written to the log. Switch it off in "Global Settings".
+            </TextBlock>
+        </Border>
+
+        <TabControl>
+            <!-- ===================== IPs ===================== -->
+            <TabItem Header="Banned / Protected IPs" IsSelected="{Binding IsIPTabSelected, Mode=OneWayToSource}">
+                <Grid Margin="3">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition/>
+                        <ColumnDefinition/>
+                        <ColumnDefinition/>
+                        <ColumnDefinition/>
+                    </Grid.ColumnDefinitions>
+
+                    <!-- temporary -->
+                    <DockPanel Grid.Column="0" Margin="3">
+                        <Label DockPanel.Dock="Top" FontWeight="SemiBold">Temporarily banned</Label>
+                        <StackPanel DockPanel.Dock="Bottom" Orientation="Horizontal" HorizontalAlignment="Right">
+                            <Button Style="{StaticResource IconButton}" Command="{Binding RemoveTemporaryBanCommand}" ToolTip="Lift the ban of the selected IP">
+                                <Image Source="pack://application:,,,/Resources/close_32.ico"/>
+                            </Button>
+                            <Button Style="{StaticResource IconButton}" Command="{Binding MoveTemporaryToPermaCommand}" ToolTip="Ban the selected IP permanently">
+                                <Image Source="pack://application:,,,/Resources/lock_32.ico"/>
+                            </Button>
+                            <Button Style="{StaticResource IconButton}" BorderThickness="3" Command="{Binding MoveAllTemporaryToPermaCommand}" ToolTip="Ban ALL these IPs permanently">
+                                <Image Source="pack://application:,,,/Resources/lock_32.ico"/>
+                            </Button>
+                            <Button Style="{StaticResource IconButton}" Command="{Binding MoveTemporaryToWhiteListCommand}" ToolTip="Put the selected IP on the white list (never banned)">
+                                <Image Source="pack://application:,,,/Resources/lock_open_32.ico"/>
+                            </Button>
+                        </StackPanel>
+                        <ListView SelectedItem="{Binding SelectedTemporaryIP}" IsEnabled="{Binding IsServiceResponding}" ItemsSource="{Binding TemporarilyBannedIPs}" KeyDown="ListViewKeyDown">
+                            <ListView.Background>
+                                <ImageBrush ImageSource="pack://application:,,,/Resources/Dtjohnnymonkey-Stopwatch-no-shading.png" Stretch="Uniform" Opacity="0.15"/>
+                            </ListView.Background>
+                        </ListView>
+                    </DockPanel>
+
+                    <!-- permanent -->
+                    <DockPanel Grid.Column="1" Margin="3">
+                        <Label DockPanel.Dock="Top" FontWeight="SemiBold">Permanently banned</Label>
+                        <DockPanel DockPanel.Dock="Bottom">
+                            <Button DockPanel.Dock="Right" Style="{StaticResource IconButton}" Command="{Binding RemovePermaBanCommand}" ToolTip="Remove the selected IP from the permanent ban list">
+                                <Image Source="pack://application:,,,/Resources/close_32.ico"/>
+                            </Button>
+                            <Button DockPanel.Dock="Right" Style="{StaticResource IconButton}" Command="{Binding AddPermaBanCommand}" ToolTip="Ban this IP permanently">
+                                <Image Source="pack://application:,,,/Resources/add_32.ico"/>
+                            </Button>
+                            <TextBox Margin="3" VerticalContentAlignment="Center" Text="{Binding PermaBanIPString, UpdateSourceTrigger=PropertyChanged}" ToolTip="IP address to ban permanently"/>
+                        </DockPanel>
+                        <ListView SelectedItem="{Binding SelectedPermanentIP}" IsEnabled="{Binding IsServiceResponding}" ItemsSource="{Binding PermanentlyBannedIPs}" KeyDown="ListViewKeyDown">
+                            <ListView.Background>
+                                <ImageBrush ImageSource="pack://application:,,,/Resources/1200px-ProhibitionSign2.svg.png" Stretch="Uniform" Opacity="0.15"/>
+                            </ListView.Background>
+                        </ListView>
+                    </DockPanel>
+
+                    <!-- white list -->
+                    <DockPanel Grid.Column="2" Margin="3">
+                        <Label DockPanel.Dock="Top" FontWeight="SemiBold">White list (never banned)</Label>
+                        <DockPanel DockPanel.Dock="Bottom">
+                            <Button DockPanel.Dock="Right" Style="{StaticResource IconButton}" Command="{Binding RemoveWhiteListFilterCommand}" ToolTip="Remove the selected entry">
+                                <Image Source="pack://application:,,,/Resources/close_32.ico"/>
+                            </Button>
+                            <Button DockPanel.Dock="Right" Style="{StaticResource IconButton}" Command="{Binding AddWhiteListFilterCommand}" ToolTip="Add to the white list">
+                                <Image Source="pack://application:,,,/Resources/add_32.ico"/>
+                            </Button>
+                            <TextBox Margin="3" VerticalContentAlignment="Center" Text="{Binding WhiteListFilter, UpdateSourceTrigger=PropertyChanged}"
+                                     ToolTip="An IP (1.2.3.4), a network (93.40.0.0/16, 2001:db8::/32) or a wildcard pattern (192.168.*)"/>
+                        </DockPanel>
+                        <ListView FontWeight="DemiBold" SelectionMode="Single" SelectedItem="{Binding SelectedWhiteListPattern}" IsEnabled="{Binding IsServiceResponding}" ItemsSource="{Binding WhiteListedPatterns}" KeyDown="ListViewKeyDown">
+                            <ListView.Background>
+                                <ImageBrush ImageSource="pack://application:,,,/Resources/49090725942_794806e948_b.jpg" Stretch="Uniform" Opacity="0.15"/>
+                            </ListView.Background>
+                        </ListView>
+                    </DockPanel>
+
+                    <!-- trusted -->
+                    <DockPanel Grid.Column="3" Margin="3">
+                        <Label DockPanel.Dock="Top" FontWeight="SemiBold">Trusted (logged in successfully)</Label>
+                        <DockPanel DockPanel.Dock="Bottom">
+                            <Button DockPanel.Dock="Right" Style="{StaticResource IconButton}" Command="{Binding RemoveTrustCommand}" ToolTip="Revoke the trust of the selected IP">
+                                <Image Source="pack://application:,,,/Resources/close_32.ico"/>
+                            </Button>
+                            <TextBlock Style="{StaticResource Hint}" Margin="3" FontSize="11">Not banned until the trust expires.</TextBlock>
+                        </DockPanel>
+                        <ListView SelectedItem="{Binding SelectedTrustedIP}" IsEnabled="{Binding IsServiceResponding}" ItemsSource="{Binding TrustedIPs}" KeyDown="ListViewKeyDown"/>
+                    </DockPanel>
+                </Grid>
+            </TabItem>
+
+            <!-- ===================== Rules ===================== -->
+            <TabItem Header="Rules">
+                <Grid Margin="5">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="300"/>
+                        <ColumnDefinition/>
+                    </Grid.ColumnDefinitions>
+                    <ListBox ItemsSource="{Binding Rules}" SelectedItem="{Binding SelectedRule}" DisplayMemberPath="DisplayName" IsEnabled="{Binding IsServiceResponding}"/>
+
+                    <ScrollViewer Grid.Column="1" VerticalScrollBarVisibility="Auto" Margin="10,0,0,0">
+                        <StackPanel DataContext="{Binding SelectedRule}" IsEnabled="{Binding DataContext.IsServiceResponding, RelativeSource={RelativeSource AncestorType=Window}}">
+                            <TextBlock Text="{Binding Name}" FontSize="16" FontWeight="SemiBold"/>
+                            <TextBlock Text="{Binding KindText}" Foreground="DarkBlue" Margin="0,2"/>
+                            <TextBlock Text="{Binding Description}" TextWrapping="Wrap" Foreground="Gray" Margin="0,2,0,10"/>
+
+                            <CheckBox IsChecked="{Binding Active}" Content="Rule is active" Margin="0,4"/>
+
+                            <Grid Margin="0,6">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="230"/>
+                                    <ColumnDefinition Width="90"/>
+                                    <ColumnDefinition/>
+                                </Grid.ColumnDefinitions>
+                                <Grid.RowDefinitions>
+                                    <RowDefinition/>
+                                    <RowDefinition/>
+                                    <RowDefinition/>
+                                    <RowDefinition/>
+                                </Grid.RowDefinitions>
+
+                                <Label Grid.Row="0">Ban duration / trust duration (s):</Label>
+                                <TextBox Grid.Row="0" Grid.Column="1" Margin="3" Text="{Binding LockTime, UpdateSourceTrigger=PropertyChanged}"/>
+                                <TextBlock Grid.Row="0" Grid.Column="2" Style="{StaticResource Hint}" Text="{Binding LockTimeText}"/>
+
+                                <Label Grid.Row="1">Observed time frame (s):</Label>
+                                <TextBox Grid.Row="1" Grid.Column="1" Margin="3" Text="{Binding EventAge, UpdateSourceTrigger=PropertyChanged}"/>
+                                <TextBlock Grid.Row="1" Grid.Column="2" Style="{StaticResource Hint}" Text="{Binding EventAgeText}"/>
+
+                                <Label Grid.Row="2">Attempts within the time frame:</Label>
+                                <TextBox Grid.Row="2" Grid.Column="1" Margin="3" Text="{Binding TriggerCount, UpdateSourceTrigger=PropertyChanged}"/>
+                                <TextBlock Grid.Row="2" Grid.Column="2" Style="{StaticResource Hint}">this many failed logins cause a ban (for trust rules: logins needed)</TextBlock>
+
+                                <Label Grid.Row="3">Temporary bans before permanent:</Label>
+                                <TextBox Grid.Row="3" Grid.Column="1" Margin="3" Text="{Binding PermaBanCount, UpdateSourceTrigger=PropertyChanged}"/>
+                                <TextBlock Grid.Row="3" Grid.Column="2" Style="{StaticResource Hint}" Text="{Binding PermaBanText}" ToolTip="-1 = never ban permanently"/>
+                            </Grid>
+
+                            <Expander Header="Technical details" Margin="0,8">
+                                <StackPanel Margin="5">
+                                    <TextBlock TextWrapping="Wrap"><Run FontWeight="SemiBold">Event log: </Run><Run Text="{Binding EventPath, Mode=OneWay}"/></TextBlock>
+                                    <TextBlock TextWrapping="Wrap"><Run FontWeight="SemiBold">Booster words: </Run><Run Text="{Binding Boosters, Mode=OneWay}"/></TextBlock>
+                                    <TextBlock TextWrapping="Wrap"><Run FontWeight="SemiBold">Regex: </Run><Run Text="{Binding Regex, Mode=OneWay}"/></TextBlock>
+                                </StackPanel>
+                            </Expander>
+
+                            <StackPanel Orientation="Horizontal" Margin="0,10">
+                                <Button Padding="12,3" Margin="0,0,6,0" Content="Save"
+                                        Command="{Binding DataContext.SaveRuleCommand, RelativeSource={RelativeSource AncestorType=Window}}"/>
+                                <Button Padding="12,3" Content="Discard changes"
+                                        Command="{Binding DataContext.DiscardRuleCommand, RelativeSource={RelativeSource AncestorType=Window}}"/>
+                            </StackPanel>
+                            <TextBlock Style="{StaticResource Hint}" Margin="0">Changes are saved to config.xml and take effect immediately.</TextBlock>
+                        </StackPanel>
+                    </ScrollViewer>
+                </Grid>
+            </TabItem>
+
+            <!-- ===================== Live ===================== -->
+            <TabItem Header="Live" IsSelected="{Binding IsConsoleTabSelected, Mode=OneWayToSource}">
+                <DockPanel Margin="3">
+                    <StackPanel DockPanel.Dock="Bottom" Orientation="Horizontal">
+                        <Label VerticalAlignment="Center">Show messages from level:</Label>
+                        <ComboBox VerticalAlignment="Center" Width="100" Margin="5" ItemsSource="{Binding AvailableLogLevels}" SelectedValue="{Binding SelectedConsoleLevel}"/>
+                        <CheckBox VerticalAlignment="Center" Name="AutoscrollCheckBox" Content="Autoscroll" IsChecked="True"/>
+                        <TextBlock Style="{StaticResource Hint}">Verbose / Debug lines are only recorded while the log level (Global Settings) is Verbose / Debug.</TextBlock>
+                    </StackPanel>
+                    <TextBox Name="ConsoleTextbox" Background="Black" Foreground="LightGreen" FontFamily="Consolas" IsReadOnly="True"
+                             Text="{Binding ConsoleText, Mode=OneWay}" TextChanged="ConsoleTextBox_TextChanged" TextWrapping="Wrap"
+                             VerticalScrollBarVisibility="Auto" AcceptsReturn="True"/>
+                </DockPanel>
+            </TabItem>
+
+            <!-- ===================== Global ===================== -->
+            <TabItem Header="Global Settings">
+                <DockPanel Margin="5">
+                    <StackPanel DockPanel.Dock="Bottom" Orientation="Horizontal" HorizontalAlignment="Right">
+                        <Button Margin="5" Padding="12,3" Content="Edit" Command="{Binding ToggleGlobalConfigEditModeCommand}"/>
+                        <Button Margin="5" Padding="12,3" Content="Save" Command="{Binding SaveGlobalConfigCommand}"/>
+                        <Button Margin="5" Padding="12,3" Content="Cancel" Command="{Binding CancelGlobalEditingCommand}"/>
+                    </StackPanel>
+                    <StackPanel IsEnabled="{Binding IsInGlobalEditMode}">
+                        <StackPanel Orientation="Horizontal" Margin="0,3">
+                            <Label Width="150">Simulation mode:</Label>
+                            <CheckBox VerticalAlignment="Center" IsChecked="{Binding MonitorOnlySetting}" Content="only log, never ban"/>
+                            <TextBlock Style="{StaticResource Hint}">Useful for the first days: you see who would be banned without risk.</TextBlock>
+                        </StackPanel>
+                        <StackPanel Orientation="Horizontal" Margin="0,3">
+                            <Label Width="150">Check interval (s):</Label>
+                            <TextBox Width="70" Margin="3" Text="{Binding CheckInterval}"/>
+                            <TextBlock Style="{StaticResource Hint}">How often the event logs are checked (1 - 3600).</TextBlock>
+                        </StackPanel>
+                        <StackPanel Orientation="Horizontal" Margin="0,3">
+                            <Label Width="150">Log level:</Label>
+                            <ComboBox Width="100" Margin="3" ItemsSource="{Binding AvailableLogLevels}" SelectedItem="{Binding LogLevel}"/>
+                            <TextBlock Style="{StaticResource Hint}">Messages of this level or higher are written to the Windows event log.</TextBlock>
+                        </StackPanel>
+                        <StackPanel Orientation="Horizontal" Margin="0,3">
+                            <Label Width="150">Console backlog:</Label>
+                            <TextBox Width="70" Margin="3" Text="{Binding ConsoleBackLog}"/>
+                            <TextBlock Style="{StaticResource Hint}">How many lines the "Live" tab can show.</TextBlock>
+                        </StackPanel>
+                    </StackPanel>
+                </DockPanel>
+            </TabItem>
+
+            <!-- ===================== Rule tester ===================== -->
+            <TabItem Header="Rule Tester">
+                <StackPanel Margin="5">
+                    <TextBlock TextWrapping="Wrap" Margin="0,0,0,6">Test whether a rule recognizes an event: paste the XML of an event (Event Viewer → event → Details → XML View).</TextBlock>
+                    <StackPanel Orientation="Horizontal">
+                        <Label>1) Rule:</Label>
+                        <ComboBox Width="300" Margin="3" ItemsSource="{Binding Rules}" SelectedItem="{Binding SelectedTestRule}" DisplayMemberPath="Name"/>
+                    </StackPanel>
+                    <Label>2) Event XML:</Label>
+                    <TextBox TextWrapping="Wrap" AcceptsReturn="True" AcceptsTab="True" Text="{Binding XMLText}" Height="160" VerticalScrollBarVisibility="Visible"/>
+                    <DockPanel Margin="0,6">
+                        <Label DockPanel.Dock="Left">3) Regex:</Label>
+                        <Button DockPanel.Dock="Right" Margin="3" Padding="8,2" Command="{Binding ResetRegexCommand}">Reset</Button>
+                        <Button DockPanel.Dock="Right" Margin="3" Padding="8,2" Command="{Binding TestRegexCommand}">Test</Button>
+                        <TextBox Margin="3" VerticalContentAlignment="Center" Text="{Binding CurrentTestRegex, UpdateSourceTrigger=PropertyChanged}"/>
+                    </DockPanel>
+                    <TextBlock Style="{StaticResource Hint}" Margin="0">The IP is taken from the group named "ip" or, if there is none, from the first group. regex101.com is great for testing.</TextBlock>
+                </StackPanel>
+            </TabItem>
+        </TabControl>
+    </DockPanel>
+</Window>

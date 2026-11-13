@@ -1,0 +1,28 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net48</TargetFramework>
+    <UseWPF>true</UseWPF>
+    <RootNamespace>ALGGatekeeperConsole</RootNamespace>
+    <AssemblyName>ALGGatekeeperConsole</AssemblyName>
+    <AssemblyTitle>ALG Gatekeeper Console</AssemblyTitle>
+    <Description>management console for ALG Gatekeeper</Description>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
+    <ApplicationIcon>Resources\ALGGatekeeper.ico</ApplicationIcon>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Reference Include="System.Runtime.Serialization" />
+    <Reference Include="System.ServiceModel" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Resource Include="Resources\*.png;Resources\*.ico;Resources\*.jpg" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\ALGGatekeeper.Contracts\ALGGatekeeper.Contracts.csproj" />
+  </ItemGroup>
+
+</Project>

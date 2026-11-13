@@ -1,0 +1,30 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- Unit tests: pure logic, no firewall / event log / admin rights needed. -->
+  <PropertyGroup>
+    <TargetFramework>net48</TargetFramework>
+    <IsPackable>false</IsPackable>
+    <IsTestProject>true</IsTestProject>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Reference Include="System.Xml.Linq" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="18.12.0" />
+    <PackageReference Include="MSTest.TestAdapter" Version="4.5.3" />
+    <PackageReference Include="MSTest.TestFramework" Version="4.5.3" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\ALGGatekeeper\ALGGatekeeper.csproj" />
+    <ProjectReference Include="..\ALGGatekeeper.Contracts\ALGGatekeeper.Contracts.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- the shipped default configuration is tested too -->
+    <None Include="..\ALGGatekeeper\config.xml" Link="TestData\config.xml" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
+</Project>

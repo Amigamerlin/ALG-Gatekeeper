@@ -1,0 +1,38 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <!-- .NET Framework 4.8 runs on Windows Server 2012 R2 / 2016 / 2019 / 2022 / 2025 and Windows 10 / 11 -->
+    <TargetFramework>net48</TargetFramework>
+    <RootNamespace>ALGGatekeeper</RootNamespace>
+    <AssemblyName>ALGGatekeeper</AssemblyName>
+    <AssemblyTitle>ALG Gatekeeper Service</AssemblyTitle>
+    <Description>Watches the Windows event log and bans brute force attackers in the Windows Firewall (fail2ban style)</Description>
+    <StartupObject>ALGGatekeeper.Program</StartupObject>
+    <ApplicationIcon>Resources\ALGGatekeeper.ico</ApplicationIcon>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Reference Include="Microsoft.CSharp" />
+    <Reference Include="System.Runtime.Serialization" />
+    <Reference Include="System.ServiceModel" />
+    <Reference Include="System.ServiceProcess" />
+    <Reference Include="System.Xml.Linq" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Update="config.xml" CopyToOutputDirectory="PreserveNewest" />
+    <None Update="license.txt" CopyToOutputDirectory="PreserveNewest" />
+    <None Update="Resources\ALGGatekeeper.ico" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="ALGGatekeeper.Tests" />
+    <InternalsVisibleTo Include="ALGGatekeeper.Tests.Integration" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\ALGGatekeeper.Contracts\ALGGatekeeper.Contracts.csproj" />
+  </ItemGroup>
+
+</Project>

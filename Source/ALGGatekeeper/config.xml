@@ -1,0 +1,322 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Config>
+	<Global>
+		<!-- Levels are: Off, Critical, Error, Warning, Info, Verbose, Debug. Messages of this level or higher are written to the Windows event log (Application, source "ALG Gatekeeper"). -->
+		<LogLevel>Info</LogLevel>
+
+		<!-- how many lines of output the service keeps for the "Live" tab of the console (0 - 100000) -->
+		<ConsoleBacklog>3000</ConsoleBacklog>
+
+		<!-- how often the event logs are checked, in seconds (1 - 3600) -->
+		<CheckInterval>30</CheckInterval>
+
+		<!-- SIMULATION MODE: true = nobody is banned, bans are only written to the log. Useful for the first days after installing. -->
+		<MonitorOnly>false</MonitorOnly>
+
+		<!-- WHITE LIST: these addresses are never banned. Separate entries with ';'.
+		     Allowed: single addresses (1.2.3.4, 2001:db8::1), networks in CIDR notation (93.40.0.0/16, 2001:db8::/32)
+		     and wildcards (192.168.*). Put the public IP of your office / home here to never lock yourself out.
+		     The private networks are white listed by default. -->
+		<WhiteList>10.0.0.0/8;172.16.0.0/12;192.168.0.0/16;127.0.0.1;</WhiteList>
+
+		<!-- PERMANENT BAN LIST: these addresses stay banned until you remove them (console, tab "Banned / Protected IPs"). -->
+		<Banlist></Banlist>
+	</Global>
+
+	<!--
+	RULES ("tasks")
+
+	Every rule reads one or more event logs and extracts the IP address of the attacker with a regex.
+	All settings of a rule (active, durations, counts) can also be changed in the console, tab "Rules".
+
+	  Type           "Ban" (default): IPs found too often are banned.
+	                 "Trust": IPs found here logged in SUCCESSFULLY; they are trusted and never banned for LockTime seconds
+	                 (each new login renews the trust). This prevents you from locking yourself out.
+	  Active         true / false
+	  LockTime       how long a temporary ban (or the trust) lasts, in seconds
+	  OnlyNew        leave it on False. True = the rule receives every event only once instead of all events of the time frame.
+	  EventAge       the observed time frame in seconds
+	  TriggerCount   this many matching events within EventAge cause a temporary ban
+	  PermaBanCount  after this many temporary bans the IP is banned permanently; -1 = never ban permanently
+	  EventPath      the event log(s) to read, separated by comma
+	  RegexBoosters  texts that must ALL appear in the event before the regex is tried (saves a lot of CPU)
+	  Regex          extracts the IP: from the group named "ip" (?<ip>...) or, if there is none, from the first group.
+	                 SECURITY: if the event also contains text chosen by the attacker (e.g. the user name), make sure the
+	                 regex takes the IP written by the server, not one hidden in that text: start with a greedy .* to take
+	                 the LAST occurrence and anchor on the text that follows it (see the SSH and SQL Server rules).
+	                 Test new regexes in the console, tab "Rule Tester". A regex taking longer than 2 seconds on an event is aborted.
+	-->
+	<Tasks>
+
+		<!-- ===================== TRUST rules (protect you from banning yourself) ===================== -->
+
+		<Task Name="TrustRDPLogins" Active="true" Type="Trust">
+			<Description>
+				Successful Remote Desktop logins (Security event 4624, logon type 10 or 7). The IP is trusted for 30 days and never banned meanwhile.
+			</Description>
+			<LockTime>2592000</LockTime>
+			<OnlyNew>False</OnlyNew>
+			<EventAge>120</EventAge>
+			<TriggerCount>1</TriggerCount>
+			<PermaBanCount>-1</PermaBanCount>
+			<EventPath>Security</EventPath>
+			<RegexBoosters>
+				<Booster>&gt;4624&lt;/EventID&gt;</Booster>
+				<Booster>LogonType</Booster>
+			</RegexBoosters>
+			<Regex>
+				&lt;Data Name=.LogonType.&gt;(?:10|7)&lt;/Data&gt;.*?&lt;Data Name=.IpAddress.&gt;(?&lt;ip&gt;[0-9a-fA-F:.]+)&lt;/Data&gt;
+			</Regex>
+		</Task>
+
+		<Task Name="TrustSSHLogins" Active="true" Type="Trust">
+			<Description>
+				Successful OpenSSH logins (password or key). The IP is trusted for 30 days and never banned meanwhile.
+			</Description>
+			<LockTime>2592000</LockTime>
+			<OnlyNew>False</OnlyNew>
+			<EventAge>120</EventAge>
+			<TriggerCount>1</TriggerCount>
+			<PermaBanCount>-1</PermaBanCount>
+			<EventPath>OpenSSH/Operational</EventPath>
+			<RegexBoosters>
+				<Booster>Accepted </Booster>
+			</RegexBoosters>
+			<Regex>
+				Accepted .*\bfrom (?&lt;ip&gt;[0-9a-fA-F:.]+) port \d+ ssh2
+			</Regex>
+		</Task>
+
+		<!-- ===================== BAN rules ===================== -->
+
+		<Task Name="BlockSMBBruters" Active="true">
+			<Description>
+				This rule checks for failed SMB logins.
+			</Description>
+			<LockTime>3600</LockTime>
+			<OnlyNew>False</OnlyNew>
+			<EventAge>120</EventAge>
+			<TriggerCount>5</TriggerCount>
+			<PermaBanCount>3</PermaBanCount>
+			<EventPath>Microsoft-Windows-SMBServer/Security</EventPath>
+			<RegexBoosters>
+				<Booster>SMB Session Authentication Failure</Booster>
+			</RegexBoosters>
+			<Regex>
+				(\b(?:[0-9]{1,3}\.){3}[0-9]{1,3}\b)
+			</Regex>
+		</Task>
+
+		<Task Name="BlockRDPBrutersBySecurity4625" Active="true">
+			<Description>
+				Failed logins in the Security log (event 4625), IPv4 and IPv6.
+			</Description>
+			<LockTime>3600</LockTime>
+			<OnlyNew>False</OnlyNew>
+			<EventAge>120</EventAge>
+			<TriggerCount>5</TriggerCount>
+			<PermaBanCount>3</PermaBanCount>
+			<EventPath>Security</EventPath>
+			<RegexBoosters>
+				<Booster>&gt;4625&lt;/EventID&gt;</Booster>
+				<Booster>IpAddress</Booster>
+			</RegexBoosters>
+			<Regex>
+				&lt;Data Name=.IpAddress.&gt;(?&lt;ip&gt;[0-9a-fA-F:.]+)&lt;/Data&gt;
+			</Regex>
+		</Task>
+
+		<Task Name="BlockRDPBrutersByRdpCore140" Active="true">
+			<Description>
+				Failed Remote Desktop logins in the RdpCoreTS/Operational log (event 140).
+				Only logged when the user does not exist (existing users do not trigger 140).
+			</Description>
+			<LockTime>3600</LockTime>
+			<OnlyNew>False</OnlyNew>
+			<EventAge>120</EventAge>
+			<TriggerCount>5</TriggerCount>
+			<PermaBanCount>3</PermaBanCount>
+			<EventPath>Microsoft-Windows-RemoteDesktopServices-RdpCoreTS/Operational</EventPath>
+			<RegexBoosters>
+				<Booster>&gt;140&lt;/EventID&gt;</Booster>
+				<Booster>IPString</Booster>
+			</RegexBoosters>
+			<Regex>
+				&lt;Data Name=.IPString.&gt;(?&lt;ip&gt;\d{1,3}(?:\.\d{1,3}){3})
+			</Regex>
+		</Task>
+
+		<Task Name="BlockRDPBrutersByRdpCore131" Active="true">
+			<Description>
+				Any new Remote Desktop connection in the RdpCoreTS/Operational log (event 131). It counts failed AND successful
+				connections, which is needed because failed logins of existing users are not logged in event 140.
+				IPs of successful logins are protected by the rule TrustRDPLogins.
+			</Description>
+			<LockTime>3600</LockTime>
+			<OnlyNew>False</OnlyNew>
+			<EventAge>120</EventAge>
+			<TriggerCount>5</TriggerCount>
+			<PermaBanCount>3</PermaBanCount>
+			<EventPath>Microsoft-Windows-RemoteDesktopServices-RdpCoreTS/Operational</EventPath>
+			<RegexBoosters>
+				<Booster>&gt;131&lt;/EventID&gt;</Booster>
+				<Booster>ClientIP</Booster>
+			</RegexBoosters>
+			<Regex>
+				&lt;Data Name=.ClientIP.&gt;(?&lt;ip&gt;\d{1,3}(?:\.\d{1,3}){3})
+			</Regex>
+		</Task>
+
+		<Task Name="BlockRDPBrutersByRdpCore131_IPV6" Active="true">
+			<Description>
+				Same as BlockRDPBrutersByRdpCore131, for IPv6 clients.
+			</Description>
+			<LockTime>3600</LockTime>
+			<OnlyNew>False</OnlyNew>
+			<EventAge>120</EventAge>
+			<TriggerCount>5</TriggerCount>
+			<PermaBanCount>3</PermaBanCount>
+			<EventPath>Microsoft-Windows-RemoteDesktopServices-RdpCoreTS/Operational</EventPath>
+			<RegexBoosters>
+				<Booster>&gt;131&lt;/EventID&gt;</Booster>
+				<Booster>ClientIP</Booster>
+			</RegexBoosters>
+			<Regex>
+				&lt;Data Name=.ClientIP.&gt;\[?(?&lt;ip&gt;[0-9a-fA-F:]*:[0-9a-fA-F:.]*[0-9a-fA-F])\]?(?::\d+)?&lt;/Data&gt;
+			</Regex>
+		</Task>
+
+		<Task Name="MariaDB" Active="true">
+			<Description>
+				Failed MariaDB / MySQL logins (any user).
+			</Description>
+			<LockTime>3600</LockTime>
+			<OnlyNew>False</OnlyNew>
+			<EventAge>120</EventAge>
+			<TriggerCount>5</TriggerCount>
+			<PermaBanCount>3</PermaBanCount>
+			<EventPath>Application</EventPath>
+			<RegexBoosters>
+				<Booster>&gt;100&lt;/EventID&gt;</Booster>
+				<Booster>Access denied for user</Booster>
+			</RegexBoosters>
+			<Regex>
+				.*(?:'|&amp;apos;)@(?:'|&amp;apos;)(?&lt;ip&gt;[0-9a-fA-F:.]+)(?:'|&amp;apos;) \(using password
+			</Regex>
+		</Task>
+
+		<Task Name="BlockSSHBrutersByOpenSsh" Active="true">
+			<Description>
+				Failed OpenSSH password logins, IPv4 and IPv6.
+			</Description>
+			<LockTime>3600</LockTime>
+			<OnlyNew>False</OnlyNew>
+			<EventAge>120</EventAge>
+			<TriggerCount>5</TriggerCount>
+			<PermaBanCount>3</PermaBanCount>
+			<EventPath>OpenSSH/Operational</EventPath>
+			<RegexBoosters>
+				<Booster>Failed password</Booster>
+			</RegexBoosters>
+			<Regex>
+				.*\bfrom (?&lt;ip&gt;[0-9a-fA-F:.]+) port \d+ ssh2
+			</Regex>
+		</Task>
+
+		<Task Name="BlockSMTPAuthExchangeFrontend" Active="true">
+			<Description>
+				Failed SMTP authentication on Exchange (Application log, MSExchangeFrontEndTransport, LogonDenied).
+			</Description>
+			<LockTime>3600</LockTime>
+			<OnlyNew>False</OnlyNew>
+			<EventAge>120</EventAge>
+			<TriggerCount>5</TriggerCount>
+			<PermaBanCount>3</PermaBanCount>
+			<EventPath>Application</EventPath>
+			<RegexBoosters>
+				<Booster>&gt;1035&lt;/EventID&gt;</Booster>
+				<Booster>MSExchangeFrontEndTransport</Booster>
+				<Booster>LogonDenied</Booster>
+			</RegexBoosters>
+			<Regex>
+				.*&lt;Data&gt;(?&lt;ip&gt;\d{1,3}(?:\.\d{1,3}){3})&lt;/Data&gt;
+			</Regex>
+		</Task>
+
+		<Task Name="BlockMSSQLBruteforce" Active="true">
+			<Description>
+				Failed SQL Server logins (event 18456: wrong password, unknown user, ...).
+			</Description>
+			<LockTime>3600</LockTime>
+			<OnlyNew>False</OnlyNew>
+			<EventAge>120</EventAge>
+			<TriggerCount>5</TriggerCount>
+			<PermaBanCount>3</PermaBanCount>
+			<EventPath>Application</EventPath>
+			<RegexBoosters>
+				<Booster>&gt;18456&lt;/EventID&gt;</Booster>
+				<Booster>[CLIENT: </Booster>
+			</RegexBoosters>
+			<Regex>
+				.*\[CLIENT: (?&lt;ip&gt;[0-9a-fA-F:.]+)\]&lt;/Data&gt;
+			</Regex>
+		</Task>
+
+		<Task Name="BlockVPNBrutersBySecurity6273" Active="true">
+			<Description>
+				Failed VPN (NPS / RRAS) authentications in the Security log (event 6273).
+			</Description>
+			<LockTime>3600</LockTime>
+			<OnlyNew>False</OnlyNew>
+			<EventAge>120</EventAge>
+			<TriggerCount>5</TriggerCount>
+			<PermaBanCount>3</PermaBanCount>
+			<EventPath>Security</EventPath>
+			<RegexBoosters>
+				<Booster>&gt;6273&lt;/EventID&gt;</Booster>
+				<Booster>CallingStationID</Booster>
+			</RegexBoosters>
+			<Regex>
+				&lt;Data Name=.CallingStationID.&gt;(?&lt;ip&gt;\d{1,3}(?:\.\d{1,3}){3})
+			</Regex>
+		</Task>
+
+		<Task Name="BlockRDWEBBruteAttacksPOST" Active="true">
+			<Description>
+				Failed RD Web Access logins (IIS log, POST, default settings).
+			</Description>
+			<LockTime>3600</LockTime>
+			<OnlyNew>False</OnlyNew>
+			<EventAge>3600</EventAge>
+			<TriggerCount>5</TriggerCount>
+			<PermaBanCount>2</PermaBanCount>
+			<EventPath>Microsoft-IIS-Logging/Logs</EventPath>
+			<RegexBoosters>
+				<Booster>&gt;6200&lt;/EventID&gt;</Booster>
+				<Booster>login.aspx</Booster>
+			</RegexBoosters>
+			<Regex>
+				&lt;Data Name=.c-ip.&gt;(?&lt;ip&gt;[0-9a-fA-F:.]+)&lt;\/Data&gt;.*&lt;Data Name=.cs-method.&gt;POST&lt;\/Data&gt;.*&lt;Data Name=.cs-uri-stem.&gt;\/RDWeb\/Pages\/.....\/login\.aspx&lt;\/Data&gt;.*&lt;Data Name=.sc-status.&gt;200&lt;\/Data&gt;.*&lt;Data Name=.sc-win32-status.&gt;0&lt;\/Data&gt;.*&lt;Data Name=.sc-substatus.&gt;0&lt;\/Data&gt;
+			</Regex>
+		</Task>
+
+		<Task Name="BlockRDWEBBruteAttacksGET" Active="true">
+			<Description>
+				Failed RD Web Access logins (IIS log, GET, without domain name).
+			</Description>
+			<LockTime>3600</LockTime>
+			<OnlyNew>False</OnlyNew>
+			<EventAge>3600</EventAge>
+			<TriggerCount>5</TriggerCount>
+			<PermaBanCount>2</PermaBanCount>
+			<EventPath>Microsoft-IIS-Logging/Logs</EventPath>
+			<RegexBoosters>
+				<Booster>&gt;6200&lt;/EventID&gt;</Booster>
+				<Booster>login.aspx</Booster>
+			</RegexBoosters>
+			<Regex>
+				&lt;Data Name=.c-ip.&gt;(?&lt;ip&gt;[0-9a-fA-F:.]+)&lt;\/Data&gt;.*&lt;Data Name=.cs-method.&gt;GET&lt;\/Data&gt;.*&lt;Data Name=.cs-uri-stem.&gt;\/RDWeb\/Pages\/.....\/login\.aspx&lt;\/Data&gt;.*&lt;Data Name=.sc-status.&gt;200&lt;\/Data&gt;.*&lt;Data Name=.sc-win32-status.&gt;0&lt;\/Data&gt;.*&lt;Data Name=.sc-substatus.&gt;0&lt;\/Data&gt;
+			</Regex>
+		</Task>
+	</Tasks>
+</Config>

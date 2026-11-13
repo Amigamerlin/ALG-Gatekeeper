@@ -1,0 +1,16 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net48</TargetFramework>
+    <RootNamespace>ALGGatekeeper.Contracts</RootNamespace>
+    <AssemblyName>ALGGatekeeper.Contracts</AssemblyName>
+    <AssemblyTitle>ALG Gatekeeper Contracts</AssemblyTitle>
+    <Description>Contracts and shared helpers between the ALG Gatekeeper service and the management console</Description>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Reference Include="System.Runtime.Serialization" />
+    <Reference Include="System.ServiceModel" />
+  </ItemGroup>
+
+</Project>

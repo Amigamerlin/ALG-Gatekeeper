@@ -1,0 +1,23 @@
+<Project>
+  <!--
+    Common settings for every project in the solution.
+    The version can be overridden at build time, e.g.:
+      dotnet build -c Release -p:Version=1.0.1
+    (the GitHub Actions workflow does this automatically from the git tag)
+  -->
+  <PropertyGroup>
+    <Version>1.0.0</Version>
+    <Product>ALG Gatekeeper</Product>
+    <Company>ALG Gatekeeper</Company>
+    <Authors>Amigamerlin; based on EvlWatcher by Michael Schönbauer</Authors>
+    <Copyright>Copyright © 2026 Amigamerlin. Based on EvlWatcher, Copyright © 2019-2024 Michael Schönbauer (MIT License)</Copyright>
+
+    <LangVersion>latest</LangVersion>
+    <Deterministic>true</Deterministic>
+    <Prefer32Bit>false</Prefer32Bit>
+    <PlatformTarget>AnyCPU</PlatformTarget>
+    <DebugType>pdbonly</DebugType>
+    <!-- lets 'dotnet build' compile the WPF console on non-Windows machines too -->
+    <EnableWindowsTargeting>true</EnableWindowsTargeting>
+  </PropertyGroup>
+</Project>
