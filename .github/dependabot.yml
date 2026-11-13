@@ -1,0 +1,11 @@
+# keeps the GitHub Actions and the NuGet test packages up to date (opens pull requests)
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: monthly
+  - package-ecosystem: nuget
+    directory: /Source
+    schedule:
+      interval: monthly
