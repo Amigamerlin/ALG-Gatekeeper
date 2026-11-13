@@ -86,9 +86,11 @@ jobs:
           New-Item -ItemType Directory -Force -Path dist | Out-Null
           Move-Item "Installer/ALGGatekeeper-$env:VERSION-setup.exe" dist/
           Compress-Archive -Path Installer/payload/* -DestinationPath "dist/ALGGatekeeper-$env:VERSION-portable.zip"
-          Get-ChildItem dist -File | ForEach-Object {
+          # hashes are computed first and written afterwards (the sums file must not hash itself)
+          $sums = Get-ChildItem dist -File | ForEach-Object {
             "$((Get-FileHash $_.FullName -Algorithm SHA256).Hash.ToLower())  $($_.Name)"
-          } | Out-File dist/SHA256SUMS.txt -Encoding ascii
+          }
+          $sums | Set-Content -Path dist/SHA256SUMS.txt -Encoding ascii
           Get-Content dist/SHA256SUMS.txt
 
       - name: Upload the setup
@@ -120,4 +122,3 @@ jobs:
             gh release create "$env:GITHUB_REF_NAME" (Get-ChildItem dist -File).FullName --title "ALG Gatekeeper $env:VERSION" --generate-notes
           }
           if ($LASTEXITCODE -ne 0) { throw "release step failed" }
-
