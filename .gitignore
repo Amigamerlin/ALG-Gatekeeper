@@ -1,0 +1,17 @@
+# Visual Studio / Rider
+.vs/
+.idea/
+*.suo
+*.user
+*.userprefs
+
+# build output
+[Bb]in/
+[Oo]bj/
+TestResults/
+artifacts/
+*.nupkg
+
+# installer output (built by GitHub Actions)
+Installer/*.exe
+Installer/payload/
