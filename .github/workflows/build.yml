@@ -1,1 +1,123 @@
+# Builds ALG Gatekeeper on a Windows machine of GitHub, runs the tests and creates the setup.
+#
+# - every push / pull request: build + tests + setup, downloadable under "Actions" -> run -> "Artifacts"
+# - a tag like v1.0.1:          the same, plus a GitHub Release with the setup attached
+#
+# Release from the browser: Releases -> Draft a new release -> new tag v1.0.1 -> Publish
+# Release from the command line: git tag v1.0.1  &&  git push origin v1.0.1
+
+name: Build
+
+on:
+  push:
+    branches: [ master, main ]
+    tags: [ 'v*' ]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: write   # needed to create the release for tags
+
+jobs:
+  build:
+    runs-on: windows-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Get the code
+        uses: actions/checkout@v6
+
+      - name: Install .NET SDK
+        uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Determine version
+        shell: pwsh
+        run: |
+          $props = [xml](Get-Content Source/Directory.Build.props)
+          $version = ($props.Project.PropertyGroup | Where-Object { $_.Version } | Select-Object -First 1).Version
+          if ($env:GITHUB_REF_TYPE -eq 'tag') { $version = $env:GITHUB_REF_NAME.TrimStart('v') }
+          if ($version -notmatch '^\d+\.\d+\.\d+$') { throw "The version '$version' must look like 1.2.3 (tag: v1.2.3)" }
+          "VERSION=$version" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+          Write-Host "Version: $version"
+
+      - name: Build
+        run: dotnet build Source/ALGGatekeeper.sln -c Release -p:Version=${{ env.VERSION }} -p:SourceRevisionId=${{ github.sha }}
+
+      - name: Unit tests
+        run: dotnet test Source/ALGGatekeeper.Tests/ALGGatekeeper.Tests.csproj -c Release --no-build --logger "trx;LogFileName=unit.trx" --results-directory TestResults
+
+      - name: Integration tests (real Windows Firewall)
+        # the runner is a throw-away VM with admin rights; failures are shown but do not stop the setup build
+        continue-on-error: true
+        run: dotnet test Source/ALGGatekeeper.Tests.Integration/ALGGatekeeper.Tests.Integration.csproj -c Release --no-build --logger "trx;LogFileName=integration.trx" --results-directory TestResults
+
+      - name: Check the shipped config.xml
+        run: Source/ALGGatekeeper/bin/Release/net48/ALGGatekeeper.exe /validateconfig
+
+      - name: Collect the files for the setup
+        shell: pwsh
+        run: |
+          $payload = 'Installer/payload'
+          New-Item -ItemType Directory -Force -Path $payload | Out-Null
+          $service = 'Source/ALGGatekeeper/bin/Release/net48'
+          $console = 'Source/ALGGatekeeperConsole/bin/Release/net48'
+          Copy-Item "$service/ALGGatekeeper.exe", "$service/ALGGatekeeper.exe.config", "$service/ALGGatekeeper.Contracts.dll", "$service/config.xml", "$service/license.txt" $payload
+          Copy-Item "$console/ALGGatekeeperConsole.exe", "$console/ALGGatekeeperConsole.exe.config" $payload
+          Copy-Item 'Source/ALGGatekeeper/Resources/ALGGatekeeper.ico' $payload
+          Get-ChildItem $payload | Format-Table Name, Length
+
+      - name: Build the setup (NSIS)
+        shell: pwsh
+        run: |
+          $makensis = (Get-Command makensis -ErrorAction SilentlyContinue).Source
+          if (-not $makensis) { $makensis = "${env:ProgramFiles(x86)}\NSIS\makensis.exe" }
+          if (-not (Test-Path $makensis)) {
+            choco install nsis -y --no-progress
+            $makensis = "${env:ProgramFiles(x86)}\NSIS\makensis.exe"
+          }
+          & $makensis /V3 "/DVERSION=$env:VERSION" Installer/ALGGatekeeper.nsi
+          if ($LASTEXITCODE -ne 0) { throw "makensis failed" }
+
+      - name: Package
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path dist | Out-Null
+          Move-Item "Installer/ALGGatekeeper-$env:VERSION-setup.exe" dist/
+          Compress-Archive -Path Installer/payload/* -DestinationPath "dist/ALGGatekeeper-$env:VERSION-portable.zip"
+          Get-ChildItem dist -File | ForEach-Object {
+            "$((Get-FileHash $_.FullName -Algorithm SHA256).Hash.ToLower())  $($_.Name)"
+          } | Out-File dist/SHA256SUMS.txt -Encoding ascii
+          Get-Content dist/SHA256SUMS.txt
+
+      - name: Upload the setup
+        uses: actions/upload-artifact@v7
+        with:
+          name: ALGGatekeeper-${{ env.VERSION }}
+          path: dist/*
+          if-no-files-found: error
+
+      - name: Upload the test results
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: test-results
+          path: TestResults/*.trx
+          if-no-files-found: ignore
+
+      - name: Create the release or attach the files (only for tags v*)
+        if: github.ref_type == 'tag'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: pwsh
+        run: |
+          # the release may already exist when it was created on the GitHub web page ("Draft a new release")
+          gh release view "$env:GITHUB_REF_NAME" *> $null
+          if ($LASTEXITCODE -eq 0) {
+            gh release upload "$env:GITHUB_REF_NAME" (Get-ChildItem dist -File).FullName --clobber
+          } else {
+            gh release create "$env:GITHUB_REF_NAME" (Get-ChildItem dist -File).FullName --title "ALG Gatekeeper $env:VERSION" --generate-notes
+          }
+          if ($LASTEXITCODE -ne 0) { throw "release step failed" }
 
